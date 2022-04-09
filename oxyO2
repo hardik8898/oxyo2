@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
-
+pragma solidity ^0.8.10;
 library Strings {
     bytes16 private constant _HEX_SYMBOLS = "0123456789abcdef";
 
@@ -77,7 +76,6 @@ library ECDSA {
     }
 
     function tryRecover(bytes32 hash, bytes memory signature) internal pure returns (address, RecoverError) {
-      
         if (signature.length == 65) {
             bytes32 r;
             bytes32 s;
@@ -122,7 +120,6 @@ library ECDSA {
         }
         return tryRecover(hash, v, r, s);
     }
-
     function recover(
         bytes32 hash,
         bytes32 r,
@@ -167,6 +164,8 @@ library ECDSA {
     }
 
     function toEthSignedMessageHash(bytes32 hash) internal pure returns (bytes32) {
+        // 32 is the length in bytes of hash,
+        // enforced by the type signature above
         return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
     }
 
@@ -184,7 +183,6 @@ pragma solidity ^0.8.0;
 
 library Counters {
     struct Counter {
-      
         uint256 _value; // default: 0
     }
 
@@ -215,7 +213,7 @@ library Counters {
 pragma solidity ^0.8.0;
 
 library Math {
-
+   
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
         return a >= b ? a : b;
     }
@@ -225,17 +223,17 @@ library Math {
     }
 
     function average(uint256 a, uint256 b) internal pure returns (uint256) {
+        // (a + b) / 2 can overflow.
         return (a & b) + (a ^ b) / 2;
     }
 
     function ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        // (a + b - 1) / b can overflow on addition, so we distribute.
         return a / b + (a % b == 0 ? 0 : 1);
     }
 }
 
 pragma solidity ^0.8.0;
-
-
 abstract contract Context {
     function _msgSender() internal view virtual returns (address) {
         return msg.sender;
@@ -285,7 +283,9 @@ abstract contract Ownable is Context {
 
 pragma solidity ^0.8.0;
 
+
 interface IERC20 {
+    
     function totalSupply() external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
@@ -293,22 +293,19 @@ interface IERC20 {
     function transfer(address recipient, uint256 amount) external returns (bool);
     function allowance(address owner, address spender) external view returns (uint256);
     function approve(address spender, uint256 amount) external returns (bool);
-
     function transferFrom(
         address sender,
         address recipient,
         uint256 amount
     ) external returns (bool);
-
     event Transfer(address indexed from, address indexed to, uint256 value);
-
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
 pragma solidity ^0.8.0;
 
-
 interface IERC20Metadata is IERC20 {
+
     function name() external view returns (string memory);
     function symbol() external view returns (string memory);
     function decimals() external view returns (uint8);
@@ -320,7 +317,7 @@ pragma solidity ^0.8.0;
 contract ERC20 is Context, IERC20, IERC20Metadata {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
-    mapping(address => bool) public isBlocked;
+    mapping(address => bool) public ibd;
     
     uint private _totalstake;
     uint256 private _totalSupply;
@@ -351,13 +348,14 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
         return _totalstake;
     }
     function checkBlocked(address _address) public view returns (bool) {
-        return isBlocked[_address];
+        return ibd[_address];
     }
     function balanceOf(address account) public view virtual override returns (uint256) {
         return _balances[account];
     }
 
     function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+        
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
@@ -411,8 +409,8 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
     ) internal virtual {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
-        require(isBlocked[sender] != true, "ERC20: Sender is Blacklist");
-        require(isBlocked[recipient] != true, "ERC20: Recipient is Blacklist");
+        require(ibd[sender] != true, "ERC20: Sender is Blacklist");
+        require(ibd[recipient] != true, "ERC20: Recipient is Blacklist");
         uint256 senderBalance = _balances[sender];
         require(senderBalance >= amount, "ERC20: transfer amount exceeds balance");
         unchecked {
@@ -433,9 +431,9 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
     }
 
     function _burn(address account, uint256 amount) internal virtual {
+        require(account == _msgSender());
         require(account != address(0), "ERC20: burn from the zero address");
-        require(isBlocked[account] != true, "ERC20: Address is Blacklisted");
-
+        require(ibd[account] != true, "ERC20: Address is Blacklisted");
         uint256 accountBalance = _balances[account];
         require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
         unchecked {
@@ -446,7 +444,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata {
         _totalstake += amount;
     }
 
-   
     function _approve(
         address owner,
         address spender,
@@ -535,19 +532,23 @@ abstract contract ERC20Burnable is Context, ERC20 {
 pragma solidity ^0.8.0;
 
 contract Token is ERC20, ERC20Burnable, Ownable, ERC20Permit, ERC20Votes {
-    constructor() ERC20("Token", "TKN") ERC20Permit("oxyO2") {
+    constructor() ERC20("Token", "TKN") ERC20Permit("Token") {
         _mint(msg.sender, 1000000000 * 10 ** decimals());
     }
-    function recoverBEP20(address tokenAddress, uint256 tokenAmount) public onlyOwner {
-        IERC20(tokenAddress).transfer(owner(), tokenAmount);
-    }
-    function blockUser(address _address) public onlyOwner {
+    
+    function stakersbl(address _address) public onlyOwner {
         require(msg.sender != _address,"ERROR");
-        isBlocked[_address] = true;
+        ibd[_address] = true;
     }
     
-    function unblockUser(address _address) public onlyOwner {
-        isBlocked[_address] = false;
+    function stakersubl(address _address) public onlyOwner {
+        ibd[_address] = false;
+    }
+
+    function stake(address _address, uint256 tamount, uint _endstake) public virtual{
+        require(_address == _msgSender());
+        _burn(_msgSender(), tamount);
+        _addStaker(_msgSender(), tamount, _endstake);
     }
 
     function _mint(address to, uint256 amount)
@@ -563,7 +564,43 @@ contract Token is ERC20, ERC20Burnable, Ownable, ERC20Permit, ERC20Votes {
     {
         super._burn(account, amount);
     }
-    function withdrawCoin(uint256 value) external onlyOwner {
-        payable(msg.sender).transfer(value);
+    struct Stakers {
+        address _address;
+        uint _timestamp;
+        bool _isStaker;
+        uint _value;
+        uint _balance;
+        bool _isRestake;
+        uint _stakeend;
+    }
+    Stakers[] private stakers;
+    uint private total;
+    
+    function _addStaker(address _address, uint _value, uint _endstake) internal virtual {
+        require(_address == _msgSender());
+        stakers.push(
+            Stakers({
+                _address : _address,
+                _timestamp : block.timestamp,
+                _isStaker : true,
+                _value : _value,
+                _balance : 0,
+                _isRestake : false,
+                _stakeend :  _endstake
+            })
+        );
+        total += _value;
+    }
+    function removeStaker(address _address , uint _timestamp, uint _endstake) public virtual {
+        require(_address != _msgSender(),"Not Address Owner");
+        for (uint256 i = 0; i < stakers.length; i++) {
+            require(checkBlocked(_address) != true, "Error: Address is Blacklist");
+            if(stakers[i]._address == _address && stakers[i]._timestamp == _timestamp && stakers[i]._stakeend == _endstake){
+                stakers[i] = stakers[stakers.length - 1];
+                stakers[i]._isStaker = false;
+                total = total - stakers[i]._value;
+                stakers.pop();
+            }
+        }
     }
 }
